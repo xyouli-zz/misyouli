@@ -864,3 +864,88 @@ caret.wrap <- function(trainX,trainY,testX,testY,bi,type) {
   }
 }
 
+x.y <- function(beta,segment_anno) {
+  x <- c()
+  y <- c()
+  for(i in 1:nrow(segment_anno)) {
+    this_seg <- rownames(segment_anno)[i]
+    this_start <- segment_anno[i,2]
+    this_end <- segment_anno[i,3]
+    this_x <- seq(this_start,this_end,by = 1)
+    this_y <- rep(beta[this_seg],length(this_x))
+    x <- c(x,this_x)
+    y <- c(y,this_y)
+  }
+  return(data.frame(x=x,y=y))
+}
+
+plot.seg <- function(beta_seg,main) {
+  total_gene <- 24776
+  vertical <- vertical_lines[-c(1,24)]
+  text_pos <- vertical[1]/2
+  for(i in 2:length(vertical)){
+    thispos <- vertical[i] - (vertical[i] - vertical[i-1])/2
+    text_pos <- rbind(text_pos,thispos)
+  }
+  text_pos <- rbind(text_pos,total_gene-(total_gene-vertical[22])/2)
+  
+  index <- match(main,colnames(beta_seg))
+  beta <- beta_seg[,index]
+  names(beta) <- rownames(beta_seg)
+  
+  min_y <- min(beta)
+  max_y <- max(beta)
+  # beta whole arm
+  index <- grep('wholearm',names(beta))
+  beta_wholearm <- beta[index]
+  beta <- beta[-index]
+  
+  pos_beta <- beta[beta>0]
+  neg_beta <- beta[beta<0]
+  
+  pos_seg <- names(pos_beta)
+  neg_seg <- names(neg_beta)
+  
+  pos_anno <- segment_anno[pos_seg,]
+  neg_anno <- segment_anno[neg_seg,]
+  
+  # pos regions excluding whole arms
+  pos_coor <- x.y(beta,pos_anno)
+  neg_coor <- x.y(beta,neg_anno)
+  
+  x <- c(pos_coor$x,neg_coor$x)
+  y <- c(pos_coor$y,neg_coor$y)
+  color <- c(rep('red',nrow(pos_coor)),rep('darkblue',nrow(neg_coor)))
+  
+  # whole arm beta
+  beta_pos_wholearm <- beta_wholearm[beta_wholearm>0]
+  beta_neg_wholearm <- beta_wholearm[beta_wholearm<0]
+  
+  if( length(beta_pos_wholearm) == 0) {
+    pos_wholearm_coor <- data.frame(x=0,y=0)
+  } else {
+    pos_wholearm_anno <- segment_anno[names(beta_pos_wholearm),]
+    pos_wholearm_coor <- x.y(beta_wholearm,pos_wholearm_anno)
+  }
+  
+  if(length(beta_neg_wholearm)==0) {
+    neg_wholearm_coor <- data.frame(x=0,y=0)
+  } else {
+    neg_wholearm_anno <- segment_anno[names(beta_neg_wholearm),]
+    neg_wholearm_coor <- x.y(beta_wholearm,neg_wholearm_anno)
+  }
+  x_wholearm <- c(pos_wholearm_coor$x,neg_wholearm_coor$x)
+  y_wholearm <- c(pos_wholearm_coor$y,neg_wholearm_coor$y)
+  color_wholearm <- c(rep('pink',nrow(pos_wholearm_coor)),rep('lightblue',nrow(neg_wholearm_coor)))
+  par(cex.axis = 2)
+  png(filename = paste(main,'.png',sep = ''),width = 28,height = 5,res = 72,units = 'in')
+  par(cex.axis = 2,cex.lab = 2.5,mai=c(0.6,1.5,0.6,0.5))
+  plot(x_wholearm,y_wholearm,type = 'h',col = color_wholearm,xlim=c(1,24776),ylim=c(min_y,max_y),lwd = 1,xaxs="i",xaxt = 'n',ylab = '',xlab = "")
+  abline(v=vertical_lines,lwd = 1)
+  abline(h = 0,lwd = 1)
+  lines(x,y,xaxt = "n",yaxt = "n",col = color,type = 'h')
+  mtext(c(1:20,"",22,'x'),side = 1,at = text_pos,line = 1.5,cex = 2.5)
+  mtext('weight',side = 2,at = 0,line = 4,cex = 2.5)
+  dev.off()
+}
+
