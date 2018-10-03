@@ -867,10 +867,10 @@ caret.wrap <- function(trainX,trainY,testX,testY,bi,type,working_dir,result_dir)
 # wrap for Elastic Net model, classification, suitable for single signature
 caret_wrap_ss <- function(trainX,trainY,testX,testY) {
   trainY2 <- ifelse(trainY==1,'high','low')
-  
+
   # set cross validation resampling method
   train_control <- trainControl(method = 'LGOCV',number = 200,classProbs = T)
-  
+
   alpha <- seq(0.1,0.9,by=0.1)
   lambda <- list()
   for(i in 1:9) {
@@ -879,19 +879,19 @@ caret_wrap_ss <- function(trainX,trainY,testX,testY) {
   }
   lambda_min <- min(unlist(lapply(lambda,min)))
   lambda_max <- max(unlist(lapply(lambda,max)))
-  
+
   tune_grid = expand.grid(alpha = seq(0.1,0.9,by=0.1), lambda = seq(lambda_min,lambda_max,length.out = 100))
-  
+
   # train model
   glmnet_obj <- train(trainX, trainY2, method = "glmnet", metric = "Accuracy",
                       trControl = train_control,tuneGrid = tune_grid)
-  
+
   save(glmnet_obj,file = 'glmnet_obj.rda')
-  
+
   # collect beta coefficients
   beta <- as.matrix(coef(glmnet_obj$finalModel,glmnet_obj$bestTune$lambda))
   write.table(beta,'beta_coefficients.txt',sep = '\t',col.names = NA)
-  
+
   # roc curve
   pred_train <- predict(glmnet_obj,newdata = trainX,type = 'prob')
   pred_test <- predict(glmnet_obj,newdata = testX,type = 'prob')
@@ -902,7 +902,7 @@ caret_wrap_ss <- function(trainX,trainY,testX,testY) {
   auc_train <- signif(performance(pred_train,measure = 'auc')@y.values[[1]][1],2)
   auc_test <- signif(performance(pred_test,measure = 'auc')@y.values[[1]][1],2)
   plot_ROC(perf_train,perf_test,auc_train,auc_test,'ROC')
-  
+
   stat <- t(c(auc_train,auc_test))
   write.table(stat,'AUC_report.txt',sep = '\t',col.names = F,row.names = F)
 }
@@ -919,7 +919,7 @@ plot_ROC <- function(perf1,perf2,a1,a2,main) {
   axis(2,tck=(-0.02),lwd = 0.8)
   mtext(side = 1,text = seq(0,1,by=0.2),at = seq(0,1,by=0.2),cex = 0.5,line = (-0.2))
   mtext(side = 2,text = seq(0,1,by=0.2),at = seq(0,1,by=0.2),cex = 0.5,line = 0.1)
-  
+
   legend('bottomright',legend = c(paste0('AUC = ',a1),paste0('AUC = ',a2)), lty = c(1,1),lwd = c(1,1) ,
          col = c('red','darkblue'),cex = 0.6,bty = 'n')
   dev.off()
@@ -950,46 +950,46 @@ plot_seg_ss <- function(beta_seg,main) {
     text_pos <- rbind(text_pos,thispos)
   }
   text_pos <- rbind(text_pos,total_gene-(total_gene-vertical[22])/2)
-  
+
   index <- match(main,colnames(beta_seg))
   beta <- beta_seg[,index]
   names(beta) <- rownames(beta_seg)
-  
+
   min_y <- min(beta)
   max_y <- max(beta)
   # beta whole arm
   index <- grep('wholearm',names(beta))
   beta_wholearm <- beta[index]
   beta <- beta[-index]
-  
+
   pos_beta <- beta[beta>0]
   neg_beta <- beta[beta<0]
-  
+
   pos_seg <- names(pos_beta)
   neg_seg <- names(neg_beta)
-  
+
   pos_anno <- segment_anno[pos_seg,]
   neg_anno <- segment_anno[neg_seg,]
-  
+
   # pos regions excluding whole arms
   pos_coor <- x_y(beta,pos_anno)
   neg_coor <- x_y(beta,neg_anno)
-  
+
   x <- c(pos_coor$x,neg_coor$x)
   y <- c(pos_coor$y,neg_coor$y)
   color <- c(rep('red',nrow(pos_coor)),rep('darkblue',nrow(neg_coor)))
-  
+
   # whole arm beta
   beta_pos_wholearm <- beta_wholearm[beta_wholearm>0]
   beta_neg_wholearm <- beta_wholearm[beta_wholearm<0]
-  
+
   if( length(beta_pos_wholearm) == 0) {
     pos_wholearm_coor <- data.frame(x=0,y=0)
   } else {
     pos_wholearm_anno <- segment_anno[names(beta_pos_wholearm),]
     pos_wholearm_coor <- x_y(beta_wholearm,pos_wholearm_anno)
   }
-  
+
   if(length(beta_neg_wholearm)==0) {
     neg_wholearm_coor <- data.frame(x=0,y=0)
   } else {
@@ -1011,3 +1011,60 @@ plot_seg_ss <- function(beta_seg,main) {
   dev.off()
 }
 
+# deal with NAs in CNGene data matrix
+# extreme method, a gene is assigned the greatest amplification or the least deletion
+
+CN_Seg2Gene <- function(data = 'seg.txt', anno = 'hg18.txt', sample_list = 'sample.txt',index) {
+  data <- read.table(data,sep = '\t',header = T,stringsAsFactors = F)
+  anno <- read.table(anno,sep = '\t',header = T,stringsAsFactors = F)
+  sample_list <- read.table(sample_list,sep = '\t',header = T,stringsAsFactors = F)
+
+  this_sample <- sample_list[,1][index]
+  print(paste(index,this_sample))
+
+  seg <- filter(data,Sample==this_sample)
+  seg[,3] <- as.integer(seg[,3])
+  seg[,4] <- as.integer(seg[,4])
+  CN_score <- rep(0,nrow(anno))
+
+  # process data segment by segment, should be faster than gene by gene
+  for( i in 1:nrow(seg)) {
+    segment_chro <- seg[i,2]
+    segment_start <- seg[i,3]
+    segment_end <- seg[i,4]
+    segment_score <- seg[i,6]
+
+    # find genes completely fall in this segment
+    this_anno <- filter(anno,Chromosome==segment_chro) %>% filter(between(Gene_Start,segment_start,segment_end) & between(Gene_End,segment_start,segment_end))
+    if(nrow(this_anno) > 0) {
+      gene_index <- match(this_anno[,5],anno[,5])
+      # assign scores to these genes
+      CN_score[gene_index] <- segment_score
+    }
+  }
+
+  # deal with genes fall in multiple segments
+  # process gene by gene
+  NA_index <- which(CN_score==0)
+  for ( i in 1:length(NA_index)) {
+    gene_name <- anno[i,5]
+    gene_chro <- anno[i,2]
+    gene_start <- anno[i,3]
+    gene_end <- anno[i,4]
+
+    # find segments this gene falls in
+    this_seg <- filter(seg,Chromosome==gene_chro) %>% filter(between(Segment_Start,gene_start,gene_end) | between(Segment_End,gene_start,gene_end))
+    # find the greatest amplification or the least deletion
+    if (nrow(this_seg) > 0) {
+      abs_score <- abs(this_seg[,6])
+      segment_index <- which.max(abs_score)
+      if (length(segment_index)==1) {
+        CN_score[i] <- this_seg[segment_index,6]
+      }
+    }
+  }
+
+  CN_score <- as.data.frame(t(CN_score))
+  rownames(CN_score) <- this_sample
+  write.table(CN_score,paste(this_sample,'.txt',sep = ''),sep = '\t',col.names = F,row.names = T)
+}
