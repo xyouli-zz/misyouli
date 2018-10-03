@@ -776,8 +776,8 @@ exp.wrap <- function(edata) {
 }
 
 
-# wrap for Elastic Net model
-caret.wrap <- function(trainX,trainY,testX,testY,bi,type) {
+# wrap for Elastic Net model, for multiple signatures and collect beta/AUC to result directory
+caret.wrap <- function(trainX,trainY,testX,testY,bi,type,working_dir,result_dir) {
   if(!bi) {
     setwd(working_dir)
 
@@ -864,7 +864,68 @@ caret.wrap <- function(trainX,trainY,testX,testY,bi,type) {
   }
 }
 
-x.y <- function(beta,segment_anno) {
+# wrap for Elastic Net model, classification, suitable for single signature
+caret_wrap_ss <- function(trainX,trainY,testX,testY) {
+  trainY2 <- ifelse(trainY==1,'high','low')
+  
+  # set cross validation resampling method
+  train_control <- trainControl(method = 'LGOCV',number = 200,classProbs = T)
+  
+  alpha <- seq(0.1,0.9,by=0.1)
+  lambda <- list()
+  for(i in 1:9) {
+    init <- glmnet(trainX,trainY,alpha = alpha[i],family = 'binomial')
+    lambda[[i]] <- init$lambda
+  }
+  lambda_min <- min(unlist(lapply(lambda,min)))
+  lambda_max <- max(unlist(lapply(lambda,max)))
+  
+  tune_grid = expand.grid(alpha = seq(0.1,0.9,by=0.1), lambda = seq(lambda_min,lambda_max,length.out = 100))
+  
+  # train model
+  glmnet_obj <- train(trainX, trainY2, method = "glmnet", metric = "Accuracy",
+                      trControl = train_control,tuneGrid = tune_grid)
+  
+  save(glmnet_obj,file = 'glmnet_obj.rda')
+  
+  # collect beta coefficients
+  beta <- as.matrix(coef(glmnet_obj$finalModel,glmnet_obj$bestTune$lambda))
+  write.table(beta,'beta_coefficients.txt',sep = '\t',col.names = NA)
+  
+  # roc curve
+  pred_train <- predict(glmnet_obj,newdata = trainX,type = 'prob')
+  pred_test <- predict(glmnet_obj,newdata = testX,type = 'prob')
+  pred_train <- prediction(pred_train$high,labels = trainY)
+  pred_test <- prediction(pred_test$high,labels = testY)
+  perf_train <- performance(pred_train,measure = 'tpr',x.measure = 'fpr')
+  perf_test <- performance(pred_test,measure = 'tpr',x.measure = 'fpr')
+  auc_train <- signif(performance(pred_train,measure = 'auc')@y.values[[1]][1],2)
+  auc_test <- signif(performance(pred_test,measure = 'auc')@y.values[[1]][1],2)
+  plot_ROC(perf_train,perf_test,auc_train,auc_test,'ROC')
+  
+  stat <- t(c(auc_train,auc_test))
+  write.table(stat,'AUC_report.txt',sep = '\t',col.names = F,row.names = F)
+}
+
+# plot ROC with two ROCs
+plot_ROC <- function(perf1,perf2,a1,a2,main) {
+  tiff(paste0(main,'.tiff'),width = 1.5,height = 1.5,units = 'in',res = 300)
+  par(mai = c(0.2,0.2,0.05,0.05),cex.axis = 0.3)
+  plot(perf1,col = 'red',lwd = 1.2,xlab = "",ylab = "",box.lwd=0.8,
+       xaxis.xaxt = 'n',yaxis.yaxt = 'n')
+  plot(perf2,col = 'darkblue',lwd = 1.2,add = T)
+  abline(a=0,b=1,lwd = 0.8)
+  axis(1,tck=(-0.02),lwd = 0.8)
+  axis(2,tck=(-0.02),lwd = 0.8)
+  mtext(side = 1,text = seq(0,1,by=0.2),at = seq(0,1,by=0.2),cex = 0.5,line = (-0.2))
+  mtext(side = 2,text = seq(0,1,by=0.2),at = seq(0,1,by=0.2),cex = 0.5,line = 0.1)
+  
+  legend('bottomright',legend = c(paste0('AUC = ',a1),paste0('AUC = ',a2)), lty = c(1,1),lwd = c(1,1) ,
+         col = c('red','darkblue'),cex = 0.6,bty = 'n')
+  dev.off()
+}
+
+x_y <- function(beta,segment_anno) {
   x <- c()
   y <- c()
   for(i in 1:nrow(segment_anno)) {
@@ -879,7 +940,8 @@ x.y <- function(beta,segment_anno) {
   return(data.frame(x=x,y=y))
 }
 
-plot.seg <- function(beta_seg,main) {
+# plot model feature for single signature
+plot_seg_ss <- function(beta_seg,main) {
   total_gene <- 24776
   vertical <- vertical_lines[-c(1,24)]
   text_pos <- vertical[1]/2
@@ -910,8 +972,8 @@ plot.seg <- function(beta_seg,main) {
   neg_anno <- segment_anno[neg_seg,]
   
   # pos regions excluding whole arms
-  pos_coor <- x.y(beta,pos_anno)
-  neg_coor <- x.y(beta,neg_anno)
+  pos_coor <- x_y(beta,pos_anno)
+  neg_coor <- x_y(beta,neg_anno)
   
   x <- c(pos_coor$x,neg_coor$x)
   y <- c(pos_coor$y,neg_coor$y)
@@ -925,14 +987,14 @@ plot.seg <- function(beta_seg,main) {
     pos_wholearm_coor <- data.frame(x=0,y=0)
   } else {
     pos_wholearm_anno <- segment_anno[names(beta_pos_wholearm),]
-    pos_wholearm_coor <- x.y(beta_wholearm,pos_wholearm_anno)
+    pos_wholearm_coor <- x_y(beta_wholearm,pos_wholearm_anno)
   }
   
   if(length(beta_neg_wholearm)==0) {
     neg_wholearm_coor <- data.frame(x=0,y=0)
   } else {
     neg_wholearm_anno <- segment_anno[names(beta_neg_wholearm),]
-    neg_wholearm_coor <- x.y(beta_wholearm,neg_wholearm_anno)
+    neg_wholearm_coor <- x_y(beta_wholearm,neg_wholearm_anno)
   }
   x_wholearm <- c(pos_wholearm_coor$x,neg_wholearm_coor$x)
   y_wholearm <- c(pos_wholearm_coor$y,neg_wholearm_coor$y)
