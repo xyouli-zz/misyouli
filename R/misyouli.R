@@ -1068,3 +1068,13 @@ CN_Seg2Gene <- function(data = 'seg.txt', anno = 'hg18.txt', sample_list = 'samp
   rownames(CN_score) <- this_sample
   write.table(CN_score,paste(this_sample,'.txt',sep = ''),sep = '\t',col.names = F,row.names = T)
 }
+
+opt.cut <- function(perf) {
+  df <- data.frame(cut = perf@alpha.values[[1]],spec = perf@x.values[[1]],sens = perf@y.values[[1]])
+  J = df$sens + df$spec
+  index <- which.max(J)
+  return(df$cut[index])
+}
+
+
+
