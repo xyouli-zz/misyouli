@@ -1076,5 +1076,14 @@ opt.cut <- function(perf) {
   return(df$cut[index])
 }
 
+quartileNorm<- function(x,y=NA){
+  uqs<- apply(x,2,function(x){ quantile(x[x>0 & !is.na(x)],0.75)})
+  if(is.na(y)){
+    y<- median(uqs)
+  }
+  x.norm <- t(apply(x,1,function(x,y){x*y},y/uqs))
+  dimnames(x.norm)<- dimnames(x)
+  return(x.norm)
+}
 
 
