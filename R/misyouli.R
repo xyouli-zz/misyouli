@@ -624,10 +624,10 @@ calc_segments<-function(x, gmtFile, method="mean", scale=F, gsaObj=NA){
   return(val)
 }
 
-# calculate signature score
-calc_modules<-function(x, gmtFile, method="mean", scale=F, gsaObj=NA){
+# calculate signature
+calc_modules<-function(x, geneset.obj, method="mean", scale=F, gsaObj=NA){
 
-  geneset.obj<- GSA.read.gmt(gmtFile)
+  # geneset.obj<- GSA.read.gmt(gmtFile)
   genenames<-row.names(x)
   np=length(geneset.obj$genesets)
 
@@ -1086,4 +1086,44 @@ uq_norm<- function(x,y=NA){
   return(x.norm)
 }
 
+calc_signature_wrap <- function(edata,geneset.obj,diff_centroid) {
+  module_score <- calc_modules(edata,geneset.obj,method = "median")
+
+  NAmodule <- rownames(module_score[is.na(module_score[,1]),])
+  if(!is.null(NAmodule)) {
+    print(NAmodule)
+    index <- match(NAmodule,rownames(module_score))
+    module_score <- module_score[-index,]
+  }
+
+  # add PD1,PDL1,CTLA4
+  PDL1 <- unlist(edata[rownames(edata)==29126,])
+  module_score <- rbind(module_score,PDL1)
+  CTLA4 <- unlist(edata[rownames(edata)==1493,])
+  module_score <- rbind(module_score,CTLA4)
+  PD1 <- unlist(edata[rownames(edata)==5133,])
+  module_score <- rbind(module_score,PD1)
+
+  # CD103_Ratio
+  CD103_pos <- module_score[rownames(module_score)=="CD103_Positive_Median_Cancer.Cell.2014_PMID.25446897"]
+  CD103_neg <- module_score[rownames(module_score)=="CD103_Negative_Median_Cancer.Cell.2014_PMID.25446897"]
+  CD103_ratio <- CD103_pos - CD103_neg # log2 scale division
+  module_score[rownames(module_score)=="CD103_Ratio_Cancer.Cell.2014_PMID.25446897",] <- CD103_ratio
+
+  # Differentiation score
+  diff_score <- assignDiffScore.dwd(diff_centroid,edata)
+  module_score <- rbind(module_score,diff_score)
+  rownames(module_score)[nrow(module_score)] <- 'UNC_Differentiation.Score_Model_BCR.2010_PMID.20813035'
+
+  # GHI_RS_Model
+  GHI_RS_Model_NJEM.2004_PMID.15591335 <- GHI_RS(edata)
+  module_score <- rbind(module_score,GHI_RS_Model_NJEM.2004_PMID.15591335)
+
+
+  # as.numeric
+  dim_name <- dimnames(module_score)
+  module_score <- apply(module_score,2,as.numeric)
+  dimnames(module_score) <- dim_name
+  return(module_score)
+}
 
