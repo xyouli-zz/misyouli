@@ -575,9 +575,9 @@ perm.wrap <- function(module_score,CN_score,CN_gain,CN_loss,index,nPerm,home) {
 
 
 # convert gene symbol to gene id for matrix x
-symbol.2.id <- function(x,symbol_id) {
-  gene_name <- rownames(x)
-  gene <- unlist(lapply(gene_name,function(x){strsplit(x,split = '_',fixed = T)[[1]][1]}))
+symbol_2_id <- function(x,symbol_id) {
+  gene <- rownames(x)
+  # gene <- unlist(lapply(gene_name,function(x){strsplit(x,split = '_',fixed = T)[[1]][1]}))
   index <- match(gene,symbol_id$hgnc_symbol)
   sub_gene <- gene[!(is.na(index))]
   sub_x <- x[!is.na(index),]
@@ -588,7 +588,7 @@ symbol.2.id <- function(x,symbol_id) {
 }
 
 # calculate segment score from gene-level CN score
-calcSegments<-function(x, gmtFile, method="mean", scale=F, gsaObj=NA){
+calc_segments<-function(x, gmtFile, method="mean", scale=F, gsaObj=NA){
 
   geneset.obj<- GSA.read.gmt(gmtFile)
   genenames<-row.names(x)
@@ -625,9 +625,9 @@ calcSegments<-function(x, gmtFile, method="mean", scale=F, gsaObj=NA){
 }
 
 # calculate signature score
-calcModules<-function(x, geneset.obj, method="mean", scale=F, gsaObj=NA){
+calc_modules<-function(x, gmtFile, method="mean", scale=F, gsaObj=NA){
 
-  #geneset.obj<- GSA.read.gmt(gmtFile)
+  geneset.obj<- GSA.read.gmt(gmtFile)
   genenames<-row.names(x)
   np=length(geneset.obj$genesets)
 
@@ -758,7 +758,7 @@ GHI_RS <- function(edata) {
 }
 
 # wrap for process PanCan gene expression data
-exp.wrap <- function(edata) {
+exp_wrap <- function(edata) {
   keep <- c('29126','1493','5133')
   edata70 <- edata[rowSums(edata<=2)<(0.3*ncol(edata)),]
   for(i in 1:3) {
@@ -777,7 +777,7 @@ exp.wrap <- function(edata) {
 
 
 # wrap for Elastic Net model, for multiple signatures and collect beta/AUC to result directory
-caret.wrap <- function(trainX,trainY,testX,testY,bi,type,working_dir,result_dir) {
+caret_wrap <- function(trainX,trainY,testX,testY,bi,type,working_dir,result_dir) {
   if(!bi) {
     setwd(working_dir)
 
@@ -1069,14 +1069,14 @@ CN_Seg2Gene <- function(data = 'seg.txt', anno = 'hg18.txt', sample_list = 'samp
   write.table(CN_score,paste(this_sample,'.txt',sep = ''),sep = '\t',col.names = F,row.names = T)
 }
 
-opt.cut <- function(perf) {
+opt_cut <- function(perf) {
   df <- data.frame(cut = perf@alpha.values[[1]],spec = perf@x.values[[1]],sens = perf@y.values[[1]])
   J = df$sens + df$spec
   index <- which.max(J)
   return(df$cut[index])
 }
 
-quartileNorm<- function(x,y=NA){
+uq_norm<- function(x,y=NA){
   uqs<- apply(x,2,function(x){ quantile(x[x>0 & !is.na(x)],0.75)})
   if(is.na(y)){
     y<- median(uqs)
