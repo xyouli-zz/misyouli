@@ -1127,3 +1127,78 @@ calc_signature_wrap <- function(edata,geneset.obj,diff_centroid) {
   return(module_score)
 }
 
+plot_surv <- function(t,delta,group,col,xlab = 't',ylab = 'survival',main) {
+  df <- length(table(group))-1
+
+  legend.group <- function(diff) {
+    N <- df+1
+    name <- names(diff$n)
+    name <- unlist(lapply(name,function(x){return(strsplit(x,split = '=')[[1]][2])}))
+    text <- paste(name[1],paste(diff$obs[1],diff$n[1],sep = '/'))
+    for(i in 2:N) {
+      text <- c(text,paste(name[i],paste(diff$obs[i],diff$n[i],sep = '/')))
+    }
+    return(text)
+  }
+
+  fit <- survfit(Surv(t,delta) ~ group,conf.type='none')
+  diff <- survdiff(Surv(t,delta) ~ group)
+  p <- signif(1-pchisq(diff$chisq,df=df),digits=3)
+  plot(fit,xlab = xlab,ylab = ylab,mark.time = T,col = col, main = main)
+  legend('bottomright',paste('log rank p =',p),text.col = ifelse(p<0.05,'red','black'))
+  legend('bottomleft',legend = legend.group(diff),lty = c(1,1), col = col)
+}
+
+get_surv_stat <- function(t,delta,module_score) {
+  sig <- colnames(module_score)
+  module_score_bi <- apply(module_score,2,function(x){ifelse(x>=quantile(x,0.67),1,0)})
+  colnames(module_score_bi) <- paste0('X',1:ncol(module_score))
+  data <- data.frame(t=t,delta=delta)
+  data <- cbind(data,module_score_bi)
+  covariates <- colnames(module_score_bi)
+  univ_formulas <- sapply(covariates,
+                          function(x) as.formula(paste('Surv(t, delta)~', x)))
+
+  univ_models <- lapply( univ_formulas, function(x){coxph(x,data)})
+  # Extract data
+  univ_results <- lapply(univ_models,
+                         function(x){
+                           x <- summary(x)
+                           p_value<-signif(x$wald["pvalue"], digits=2)
+                           beta<-signif(x$coef[1], digits=2);#coeficient beta
+                           HR <-signif(x$coef[2], digits=2);#exp(beta)
+                           HR_lower <- signif(x$conf.int[,"lower .95"], 2)
+                           HR_upper <- signif(x$conf.int[,"upper .95"],2)
+                           res<-c(beta, HR, HR_lower, HR_upper,p_value)
+                           names(res)<-c("beta", "HR", "HR_lower", "HR_upper", "p_value")
+                           return(res)
+                         })
+  res <-  as.data.frame(t(as.data.frame(univ_results, check.names = FALSE)))
+  res <- res %>% mutate(Signature = sig)
+  return(res)
+}
+
+# elastic net prediction to survival
+get_surv_stat_EN <- function(t,delta,module_score,CN_score) {
+  sig <- colnames(module_score)
+  res <- lapply(sig,
+                function(s){
+                  load(paste0("E:/longleaf/elastic_net_glmnet_obj/whole_genome/all_module/glmnet_all_module/TCGA_GISTIC2_segment/",s,'/ca_co_glmnet_obj.rda'))
+                  pred <- predict(glmnet_obj,newdata = CN_score,type = 'prob')
+                  prob <- pred$high
+                  prob_bi <- ifelse(prob >= quantile(prob,0.67),1,0)
+                  cox <- coxph(Surv(t,delta) ~ prob_bi)
+                  x <- summary(cox)
+                  p_value<-signif(x$wald["pvalue"], digits=2)
+                  beta<-signif(x$coef[1], digits=2);#coeficient beta
+                  HR <-signif(x$coef[2], digits=2);#exp(beta)
+                  HR_lower <- signif(x$conf.int[,"lower .95"], 2)
+                  HR_upper <- signif(x$conf.int[,"upper .95"],2)
+                  res<-c(beta, HR, HR_lower, HR_upper,p_value)
+                  names(res)<-c("beta", "HR", "HR_lower", "HR_upper", "p_value")
+                  return(res)
+                })
+  res <- as.data.frame(t(as.data.frame(res)))
+  res <- res %>% mutate(Signature = sig)
+  return(res)
+}
