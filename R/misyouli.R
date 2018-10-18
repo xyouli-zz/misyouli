@@ -1203,3 +1203,65 @@ get_surv_stat_EN <- function(t,delta,module_score,CN_score) {
   res <- res %>% mutate(Signature = sig)
   return(res)
 }
+
+get_pCR_stat <- function(pCR,module_score) {
+  sig <- colnames(module_score)
+  module_score_bi <- apply(module_score,2,function(x){ifelse(x>=quantile(x,0.67),1,0)})
+
+  get_table <- function(pCR,score_bi) {
+    table <- matrix(0,nrow = 2,ncol = 2)
+    table[1,1] <- length(which(score_bi == 1 & pCR == 1))
+    table[1,2] <- length(which(score_bi == 1 & pCR == 0))
+    table[2,1] <- length(which(score_bi == 0 & pCR == 1))
+    table[2,2] <- length(which(score_bi == 0 & pCR == 0))
+    return(table)
+  }
+
+  univ_table <- lapply(sig, function(s){get_table(pCR,module_score_bi[,s])})
+  univ_models <- lapply(univ_table, function(x){fisher.test(x)})
+  # Extract data
+  univ_results <- lapply(univ_models,
+                         function(x){
+                           p_value <- x$p.value
+                           OR <- x$estimate
+                           res<-c(OR,p_value)
+                           names(res)<-c("OR","p_value")
+                           return(res)
+                         })
+  res <-  as.data.frame(t(as.data.frame(univ_results, check.names = FALSE)))
+  res <- res %>% mutate(Signature = sig)
+  return(res)
+}
+
+get_pCR_stat_EN <- function(pCR,module_score, CN_score) {
+  sig <- colnames(module_score)
+
+  get_table <- function(pCR,score_bi) {
+    table <- matrix(0,nrow = 2,ncol = 2)
+    table[1,1] <- length(which(score_bi == 1 & pCR == 1))
+    table[1,2] <- length(which(score_bi == 1 & pCR == 0))
+    table[2,1] <- length(which(score_bi == 0 & pCR == 1))
+    table[2,2] <- length(which(score_bi == 0 & pCR == 0))
+    return(table)
+  }
+
+  res <- lapply(sig,
+                function(s){
+                  load(paste0("E:/longleaf/elastic_net_glmnet_obj/whole_genome/all_module/glmnet_all_module/TCGA_GISTIC2_segment/",s,'/ca_co_glmnet_obj.rda'))
+                  pred <- predict(glmnet_obj,newdata = CN_score,type = 'prob')
+                  prob <- pred$high
+                  prob_bi <- ifelse(prob >= quantile(prob,0.67),1,0)
+                  table <- get_table(pCR,prob_bi)
+                  x <- fisher.test(table)
+                  p_value <- x$p.value
+                  OR <- x$estimate
+                  res<-c(OR,p_value)
+                  names(res)<-c("OR","p_value")
+                  return(res)
+                })
+
+  res <-  as.data.frame(t(as.data.frame(res)))
+  res <- res %>% mutate(Signature = sig)
+  return(res)
+}
+
