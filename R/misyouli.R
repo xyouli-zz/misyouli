@@ -1108,7 +1108,8 @@ calc_signature_wrap <- function(edata,geneset.obj,diff_centroid) {
   CD103_pos <- module_score[rownames(module_score)=="CD103_Positive_Median_Cancer.Cell.2014_PMID.25446897"]
   CD103_neg <- module_score[rownames(module_score)=="CD103_Negative_Median_Cancer.Cell.2014_PMID.25446897"]
   CD103_ratio <- CD103_pos - CD103_neg # log2 scale division
-  module_score[rownames(module_score)=="CD103_Ratio_Cancer.Cell.2014_PMID.25446897",] <- CD103_ratio
+  module_score <- rbind(module_score,CD103_ratio)
+  rownames(module_score)[nrow(module_score)] <- "CD103_Ratio_Cancer.Cell.2014_PMID.25446897"
 
   # Differentiation score
   diff_score <- assignDiffScore.dwd(diff_centroid,edata)
