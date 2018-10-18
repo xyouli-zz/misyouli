@@ -1265,3 +1265,21 @@ get_pCR_stat_EN <- function(pCR,module_score, CN_score) {
   return(res)
 }
 
+get_pCR_AUC_EN <- function(pCR,module_score, CN_score) {
+  sig <- colnames(module_score)
+
+  res <- lapply(sig,
+                function(s){
+                  load(paste0("E:/longleaf/elastic_net_glmnet_obj/whole_genome/all_module/glmnet_all_module/TCGA_GISTIC2_segment/",s,'/ca_co_glmnet_obj.rda'))
+                  pred <- predict(glmnet_obj,newdata = CN_score,type = 'prob')
+                  pred <- prediction(pred$high,labels = pCR)
+                  perf <- performance(pred,measure = 'tpr',x.measure = 'fpr')
+                  auc <- signif(performance(pred,measure = 'auc')@y.values[[1]][1],2)
+                  return(auc)
+                })
+
+  res <-  as.data.frame(t(as.data.frame(res)))
+  colnames(res) <- 'AUC'
+  res <- res %>% mutate(Signature = sig)
+  return(res)
+}
