@@ -1014,10 +1014,10 @@ plot_seg_ss <- function(beta_seg,main) {
 # deal with NAs in CNGene data matrix
 # extreme method, a gene is assigned the greatest amplification or the least deletion
 
-CN_Seg2Gene <- function(data = 'seg.txt', anno = 'hg18.txt', sample_list = 'sample.txt',index) {
+CN_Seg2Gene <- function(data = 'seg.txt', anno = 'hg18.txt', index) {
   data <- read.table(data,sep = '\t',header = T,stringsAsFactors = F)
   anno <- read.table(anno,sep = '\t',header = T,stringsAsFactors = F)
-  sample_list <- read.table(sample_list,sep = '\t',header = T,stringsAsFactors = F)
+  sample_list <- unique(data$sample)
 
   this_sample <- sample_list[,1][index]
   print(paste(index,this_sample))
@@ -1046,7 +1046,7 @@ CN_Seg2Gene <- function(data = 'seg.txt', anno = 'hg18.txt', sample_list = 'samp
   # deal with genes fall in multiple segments
   # process gene by gene
   NA_index <- which(CN_score==0)
-  for ( i in 1:length(NA_index)) {
+  for ( i in NA_index) {
     gene_name <- anno[i,5]
     gene_chro <- anno[i,2]
     gene_start <- anno[i,3]
