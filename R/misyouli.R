@@ -1283,3 +1283,20 @@ get_pCR_AUC_EN <- function(pCR,module_score, CN_score) {
   res <- res %>% mutate(Signature = sig)
   return(res)
 }
+
+Maf2Matrix <- function(x) {
+  sample <- unique(x$Tumor_Sample_Barcode)
+  gene <- unique(x$Hugo_Symbol)
+  result <- matrix(0,nrow = length(gene),ncol = length(sample))
+  for ( i in 1:length(sample) ) {
+    print(paste('Sample:',i))
+    this_sample <- sample[i]
+    this_MAF <- filter(x,Tumor_Sample_Barcode == this_sample)
+    this_gene <- unique(this_MAF$Hugo_Symbol)
+    index <- match(this_gene,gene)
+    result[index,i] <- 1
+  }
+  rownames(result) <- gene
+  colnames(result) <- sample
+  return(result)
+}
