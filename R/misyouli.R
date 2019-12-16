@@ -509,7 +509,6 @@ fisherGainPerm <- function(module_score,CN_gain,index,nPerm) {
 
 fisherLossPerm <- function(module_score,CN_loss,index,nPerm) {
   score <- unlist(module_score[index,])
-  for(i in 1:nPerm) {
     temp <- sample(score,length(score),replace = F)
     loss <- apply(CN_loss,1,function(x){return(fisherTest(temp,unlist(x)))})
     write.table(min(loss[1,]),file = paste("fisher_loss_perm_p_value_for_",rownames(module_score)[index],".txt",sep = ""),sep = '\t',col.names = F,row.names = F,append = T)
